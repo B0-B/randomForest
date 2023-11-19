@@ -61,7 +61,10 @@ And a detailed overview of the methods implemented so far:
 
 from __future__ import annotations
 from typing import Any 
+from pathlib import PosixPath, Path
 import random
+import csv
+
 
 # multiprocessing might be a better choice than threading 
 # as it can bypass the GIL and utilize multiple cores effectively
@@ -280,28 +283,26 @@ class Tree:
     def pureNode (self, node: Node, feature: str, ignoreCasing: bool=False) -> float:
         
         '''
-        Finds the best split by minimizing the impurity  (in regards of a 
-        provided feature) of a node.
+        Finds the best split by minimizing the impurity of a node (in regard of a 
+        provided feature).
         '''
 
-        fType = type(self.features[feature])
+        fType = self.Set.features[feature]
 
         L, R = None, None
         condition = None
         impurity = float('inf')
 
         # split the parent set depending on feature type into L, R childs
-        if isinstance(fType, (int, float)):
-
-            # float and integers demand continuous splits
+        if fType in (int, float):
 
             # first determine search domain by accumulating all 
             # observed feature values
             domain = []
-            for e in node.Set:
+            for e in node.Set.elements:
                 domain.append(e.features[feature])
         
-        elif isinstance(fType, list):
+        elif type(fType) is list:
 
             # string features are discrete, use all 
             # possible string features as domain.
@@ -354,9 +355,10 @@ class Tree:
             # -- node is at current depth --
 
             # select random but distinct features
+            featureNames = list(self.Set.features.keys())
             if not featureSubset:
-                featureSubset = len(self.Set.features)
-            randomFeatures = self.Set.features
+                featureSubset = len(featureNames)
+            randomFeatures = featureNames
             random.shuffle(randomFeatures)
             randomFeatures = randomFeatures[:featureSubset]
             
@@ -511,22 +513,144 @@ class Forest:
 
             t.grow(0, self.featureSubset, self.ignoreCasing)
 
+def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: list[int]=[]) -> Set:
+
+    with open(csvPath, 'r') as csvfile:
+
+        spamreader = csv.reader(csvfile, delimiter=delimiter, quotechar='|')
+
+        # read the header
+        header = next(spamreader)
+        print(f'Header: {header}')
+
+        # from header extract features and class target
+        # the last column is the class
+        cols = len(header)
+        features = {}
+        classes = []
+
+        for i in range(cols):
+
+            # skip ignored columns
+            if i in ignoreColumns:
+                continue
+            
+            # hang on at last columns - define as class
+            if i == cols-1:
+                break
+
+            feature = header[i]
+
+            # init feature in aggregation dict if not known
+            features[feature] = []
+            
+        
+        # read the rest of the rows
+        for row in spamreader:
+            
+            # count all possible feature samples for a feature name
+            for c in range(cols-1):
+
+                if c in ignoreColumns:
+                    continue
+
+                sample = row[c] # feature sample e.g. red
+                feature = header[c] # feature name e.g. color
+
+                if features[feature] in [int, float]:
+                    continue
+                
+                # if the feature is still empty check for actual type
+                if not len(features[feature]):
+
+                    # check if feature is int
+                    try:
+                        int(sample)
+                        features[feature] = int
+                        continue
+                    except:
+                        pass
+
+                    # check if feature is float
+                    if not features[feature]:
+                        try:
+                            float(sample)
+                            features[feature] = float
+                            continue
+                        except:
+                            pass
+
+                # else feature is definitely a str class
+                if sample not in features[feature]:
+                    features[feature].append(sample)
+                
+            # class column
+            for i in range(1, cols):
+                if cols - i not in ignoreColumns:
+                    sample = row[cols - i] # last column is for classes
+                    break
+            if type(sample) is not str: # make sure class is a string, indices will convert to stringed numbers
+                sample = str(sample)
+
+            # add newly observed classes only
+            if sample not in classes:
+                classes.append(sample)
+            
+        # initialize set with parsed features and classes
+        _set = Set(classes, features)
+
+        # read the rest of the rows and extract elements
+        for row in spamreader:
+            
+            # count all possible feature samples for a feature name
+            _class = None
+            selectedRow = {}
+            for c in range(cols):
+
+                if c in ignoreColumns:
+                    continue
+                
+                if c == cols-1:
+                    _class = row[c]
+                    continue
+                else:
+                    key = header[c]
+
+                value = row[c]
+
+                selectedRow[key] = value
+            
+            # create element for the row
+            element = Element(_class, **selectedRow)
+
+            # add element to set
+            _set.addElement(element)
+
+        return _set
+
+
 if __name__ == '__main__':
 
-    s = Set(classes=['Good', 'Bad'], features={
-        'Savings': ['Low', 'Medium', 'High'],
-        'Assets': ['Low', 'Medium', 'High'],
-        'Income': int
-    })
+    s = loadSetFromCsv ('./credit_testdata.csv')
+    print(s.classes)
 
-    # add data to the set
-    s.addElement( Element(_class='Good', Savings='Medium', Assets='High', Income=75) )
-    s.addElement( Element(_class='Bad', Savings='Low', Assets='Low', Income=50) )
-    s.addElement( Element(_class='Bad', Savings='High', Assets='Medium', Income=25) )
-    s.addElement( Element(_class='Good', Savings='Medium', Assets='Medium', Income=75) )
-    s.addElement( Element(_class='Good', Savings='Low', Assets='Medium', Income=75) )
-    s.addElement( Element(_class='Good', Savings='High', Assets='High', Income=25) )
-    s.addElement( Element(_class='Bad', Savings='Low', Assets='Low', Income=25) )
-    s.addElement( Element(_class='Good', Savings='Medium', Assets='Medium', Income=75) )
+    f = Forest(s, 10, 2, featureSubset=2, ignoreCasing=True)
+    f.grow(threads=1)
 
-    print(s.impurity())
+    # s = Set(classes=['Good', 'Bad'], features={
+    #     'Savings': ['Low', 'Medium', 'High'],
+    #     'Assets': ['Low', 'Medium', 'High'],
+    #     'Income': int
+    # })
+
+    # # add data to the set
+    # s.addElement( Element(_class='Good', Savings='Medium', Assets='High', Income=75) )
+    # s.addElement( Element(_class='Bad', Savings='Low', Assets='Low', Income=50) )
+    # s.addElement( Element(_class='Bad', Savings='High', Assets='Medium', Income=25) )
+    # s.addElement( Element(_class='Good', Savings='Medium', Assets='Medium', Income=75) )
+    # s.addElement( Element(_class='Good', Savings='Low', Assets='Medium', Income=75) )
+    # s.addElement( Element(_class='Good', Savings='High', Assets='High', Income=25) )
+    # s.addElement( Element(_class='Bad', Savings='Low', Assets='Low', Income=25) )
+    # s.addElement( Element(_class='Good', Savings='Medium', Assets='Medium', Income=75) )
+
+    # print(s.impurity())
