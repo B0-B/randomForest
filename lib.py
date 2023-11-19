@@ -230,6 +230,14 @@ class Set:
 
         return LS, RS
 
+    def sample (self, size: int=1) -> list[Element]:
+
+        '''
+        Samples a distinvtive list of elements uniformly from global elements set.
+        '''
+
+        return random.sample(list(self.elements), size)
+
 class Node:
 
     '''
@@ -287,7 +295,9 @@ class Tree:
         provided feature).
         '''
 
+        print('test:', feature)
         fType = self.Set.features[feature]
+            
 
         L, R = None, None
         condition = None
@@ -363,7 +373,7 @@ class Tree:
             randomFeatures = randomFeatures[:featureSubset]
             
             # find best feature which minimizes the impurity
-            bestFeature = None
+            bestFeature = randomFeatures[0]
             impurity = float('inf')
             for feat in randomFeatures:
                 probe = self.pureNode(node, feat, ignoreCasing)
@@ -528,6 +538,7 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
         cols = len(header)
         features = {}
         classes = []
+        rows = []
 
         for i in range(cols):
 
@@ -548,6 +559,9 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
         # read the rest of the rows
         for row in spamreader:
             
+            # extract row
+            rows.append(row)
+            
             # count all possible feature samples for a feature name
             for c in range(cols-1):
 
@@ -565,7 +579,7 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
 
                     # check if feature is int
                     try:
-                        int(sample)
+                        sample = int(sample)
                         features[feature] = int
                         continue
                     except:
@@ -574,13 +588,13 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
                     # check if feature is float
                     if not features[feature]:
                         try:
-                            float(sample)
+                            sample = float(sample)
                             features[feature] = float
                             continue
                         except:
                             pass
 
-                # else feature is definitely a str class
+                # else feature is definitely a str feature
                 if sample not in features[feature]:
                     features[feature].append(sample)
                 
@@ -595,11 +609,85 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
             # add newly observed classes only
             if sample not in classes:
                 classes.append(sample)
+        
+        # initialize set with parsed features and classes
+        _set = Set(classes, features)
+        
+        # read the rest of the rows and extract elements
+        parsedElements = 0
+        for row in rows:
             
+            # count all possible feature samples for a feature name
+            _class = None
+            selectedRow = {}
+            for c in range(cols):
+
+                if c in ignoreColumns:
+                    continue
+                
+                if c == cols-1:
+                    _class = str(row[c])
+                    continue
+                
+                key = header[c]
+                value = row[c]
+
+                # set the correct type for feature sample
+                if features[key] is int:
+                    value = int(value)
+                elif features[key] is float:
+                    value = int(value)
+                else:
+                    value = str(value)
+
+                selectedRow[key] = value
+            
+            # create element for the row
+            element = Element(_class, **selectedRow)
+
+            # add element to set
+            _set.addElement(element)
+            parsedElements += 1
+        print(f'{parsedElements} elements loaded.')
+
+        return _set
+    
+def loadSetFromCsv2(csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: list[int]=[]) -> Set:
+
+    with open(csvPath, 'r') as csvfile:
+
+        spamreader = csv.reader(csvfile, delimiter=delimiter, quotechar='|')
+
+        # read the header
+        header = next(spamreader)
+        print(f'Header: {header}')
+
+        # from header extract features and class target
+        # the last column is the class
+        cols = len(header)
+        features = {}
+        classes = []
+
+        for i in range(cols):
+
+            # skip ignored columns
+            if i in ignoreColumns:
+                continue
+            
+            # hang on at last columns - define as class
+            if i == cols-1:
+                break
+
+            feature = header[i]
+
+            # init feature in aggregation dict if not known
+            features[feature] = []
+            
+        
         # initialize set with parsed features and classes
         _set = Set(classes, features)
 
-        # read the rest of the rows and extract elements
+        # read the rest of the rows
         for row in spamreader:
             
             # count all possible feature samples for a feature name
@@ -631,12 +719,17 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
 
 if __name__ == '__main__':
 
-    s = loadSetFromCsv ('./credit_testdata.csv')
+    s = loadSetFromCsv ('./credit_testdata.csv', ignoreColumns=[0])
     print(s.classes)
+    print('elements', len(s.elements))
 
-    f = Forest(s, 10, 2, featureSubset=2, ignoreCasing=True)
+    f = Forest(s, 3, 2, featureSubset=2, ignoreCasing=True)
     f.grow(threads=1)
 
+    testSample = s.sample()[0]
+    dist = f.classify(testSample)
+
+    print('Expected:', testSample._class, 'Predicted:', dist)
     # s = Set(classes=['Good', 'Bad'], features={
     #     'Savings': ['Low', 'Medium', 'High'],
     #     'Assets': ['Low', 'Medium', 'High'],
