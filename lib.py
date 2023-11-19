@@ -270,6 +270,7 @@ class Node:
         self.rightChild = rightChild
         self.feature = feature
         self.condition = condition
+        self.impurity = None
 
 class Tree:
 
@@ -340,6 +341,8 @@ class Tree:
         node.feature = feature
         node.leftChild = Node(node.depth + 1, L, node)
         node.rightChild = Node(node.depth + 1, R, node)
+        node.impurity = impurity
+
 
         return impurity
 
@@ -391,6 +394,40 @@ class Tree:
 
             # Call grow function recursively with incremented currentDepth
             self.grow(currentDepth + 1, featureSubset, ignoreCasing)
+
+    def show (self) -> None:
+
+        '''
+        Shows every node of the tree.
+        '''
+
+        out = ''
+
+        for d in range(self.depth):
+
+            row = ''
+
+            nodesForRow = []
+            for n in self.nodes:
+                if n.depth == d:
+                    nodesForRow.append(n)
+                if n == 2**d:
+                    break
+            
+                for n in nodesForRow:
+                    if n.feature:
+                        row += f'feat:{n.feature};'
+                    if n.condition:
+                        row += f'cond:{n.condition};'
+                    if n.impurity:
+                        row += f'impu:{round(n.impurity, 4)}'
+                    if row == '' and d == self.depth-1:
+                        row = 'leaf'
+                    out += f'[{row}] ' 
+
+            out += '\n'
+
+        print(out)
 
     def traverse (self, element: Element, ignoreCasing: bool=False) -> dict[int|float|str, float]:
 
@@ -537,7 +574,6 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
         features = {}
         classes = []
         rows = []
-
         for i in range(cols):
 
             # skip ignored columns
@@ -553,7 +589,6 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
             # init feature in aggregation dict if not known
             features[feature] = []
             
-        
         # read the rest of the rows
         for row in spamreader:
             
@@ -666,6 +701,8 @@ if __name__ == '__main__':
     print(f'Test Data Element Features: {str(testSample.features)}')
     print('Expected/Actual Evaluation:', testSample._class)
     print('Forest Prediction:', dist)
+
+    f.trees[0].show()
     # s = Set(classes=['Good', 'Bad'], features={
     #     'Savings': ['Low', 'Medium', 'High'],
     #     'Assets': ['Low', 'Medium', 'High'],
