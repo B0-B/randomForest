@@ -295,7 +295,6 @@ class Tree:
         provided feature).
         '''
 
-        print('test:', feature)
         fType = self.Set.features[feature]
             
 
@@ -531,7 +530,6 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
 
         # read the header
         header = next(spamreader)
-        print(f'Header: {header}')
 
         # from header extract features and class target
         # the last column is the class
@@ -659,7 +657,7 @@ if __name__ == '__main__':
     print(s.classes)
     print('elements', len(s.elements))
 
-    f = Forest(s, 5, 2, featureSubset=2, ignoreCasing=True)
+    f = Forest(s, 10, 3, featureSubset=2, ignoreCasing=True)
     f.grow(threads=1)
 
     testSample = s.sample()[0]

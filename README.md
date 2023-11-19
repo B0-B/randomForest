@@ -1,6 +1,6 @@
 # randomForest
 
-A simple but powerful implementation of [random forest](https://en.wikipedia.org/wiki/Random_forest) with a vanilla framework.
+A vanilla implementation of [random forest](https://en.wikipedia.org/wiki/Random_forest) coming with a python framework.
 
 # Intro
 *In a 1906 fair, 800 attendees guessed an ox’s weight. Astonishingly, the crowd’s median guess was within 1% of the actual weight, outperforming all individual estimates. [[source](https://databasecamp.de/en/ml/random-forests)]*
@@ -16,8 +16,7 @@ So, in essence, a Random Forest is a powerful way to make predictions by combini
 
 # Getting Started
 
-## Loading & Training
-### Credit Risk CSV Data 
+## Loading Credit Risk CSV Data 
 The credit test data is provided as a csv-file outlined in the table below.
 
 |Customer|Savings|Assets|Income|Credit_Risk|
@@ -72,8 +71,6 @@ f.grow(thread=1)
 
 While the forest grows, it trains each decision node of his trees, searching for patterns.
 
-## Testing
-
 ### Quick Test Sample
 
 Once the forest has grown, it needs to be tested. For this we can use the root `Set`-object to get a randomly sampled element for classification:
@@ -99,4 +96,4 @@ Test Element Features: {'Savings': 'Low', 'Assets': 'Medium', 'Income': 100}
 Expected/Actual: Good
 Forest Prediction: {'Good': 0.625, 'Bad': 0.375}
 ```
-**Good** was predicted with **62.5%** accuracy, from only 8 data entries.
+**Good** was correctly predicted with **62.5%** certainty, from only 8 data entries.
