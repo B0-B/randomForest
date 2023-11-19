@@ -652,70 +652,6 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
 
         return _set
     
-def loadSetFromCsv2(csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: list[int]=[]) -> Set:
-
-    with open(csvPath, 'r') as csvfile:
-
-        spamreader = csv.reader(csvfile, delimiter=delimiter, quotechar='|')
-
-        # read the header
-        header = next(spamreader)
-        print(f'Header: {header}')
-
-        # from header extract features and class target
-        # the last column is the class
-        cols = len(header)
-        features = {}
-        classes = []
-
-        for i in range(cols):
-
-            # skip ignored columns
-            if i in ignoreColumns:
-                continue
-            
-            # hang on at last columns - define as class
-            if i == cols-1:
-                break
-
-            feature = header[i]
-
-            # init feature in aggregation dict if not known
-            features[feature] = []
-            
-        
-        # initialize set with parsed features and classes
-        _set = Set(classes, features)
-
-        # read the rest of the rows
-        for row in spamreader:
-            
-            # count all possible feature samples for a feature name
-            _class = None
-            selectedRow = {}
-            for c in range(cols):
-
-                if c in ignoreColumns:
-                    continue
-                
-                if c == cols-1:
-                    _class = row[c]
-                    continue
-                else:
-                    key = header[c]
-
-                value = row[c]
-
-                selectedRow[key] = value
-            
-            # create element for the row
-            element = Element(_class, **selectedRow)
-
-            # add element to set
-            _set.addElement(element)
-
-        return _set
-
 
 if __name__ == '__main__':
 
@@ -723,13 +659,15 @@ if __name__ == '__main__':
     print(s.classes)
     print('elements', len(s.elements))
 
-    f = Forest(s, 3, 2, featureSubset=2, ignoreCasing=True)
+    f = Forest(s, 5, 2, featureSubset=2, ignoreCasing=True)
     f.grow(threads=1)
 
     testSample = s.sample()[0]
     dist = f.classify(testSample)
 
-    print('Expected:', testSample._class, 'Predicted:', dist)
+    print(f'Test Data Element Features: {str(testSample.features)}')
+    print('Expected/Actual Evaluation:', testSample._class)
+    print('Forest Prediction:', dist)
     # s = Set(classes=['Good', 'Bad'], features={
     #     'Savings': ['Low', 'Medium', 'High'],
     #     'Assets': ['Low', 'Medium', 'High'],
