@@ -7,7 +7,8 @@ Here’s a high-level overview of the classes:
 
     [Set Class]         This class represents a set of Element objects. 
                         It includes methods for adding elements, calculating 
-                        the Gini impurity, and splitting the set based on a feature and value.
+                        the Gini impurity, and splitting the set based on a 
+                        feature and value.
 
     [Node Class]        This class represents a node in your decision tree. 
                         Each Node has an ID, depth, associated Set, parent, 
@@ -75,7 +76,7 @@ from multiprocessing import Process
 class Element:
 
     '''
-    Elements are the lowest level objects which are contained in a set.
+    Elements are the lowest level objects and are collected in a set.
     Every Element has a specific class, and arbitrary features, both of
     them are either int|float|str types.  
     '''
@@ -93,7 +94,7 @@ class Set:
     Features can be either types or list of categories (same type formats).
     Example for a cat-dog classifier:
         classes=['cat', 'dog']
-        feature={ # feature domain
+        features={ # feature domain
             'color': ['white', 'brown', 'grey', 'black'],
             'height': float,
             'age': int
@@ -233,7 +234,7 @@ class Set:
     def sample (self, size: int=1) -> list[Element]:
 
         '''
-        Samples a distinvtive list of elements uniformly from global elements set.
+        Samples a distinctive list of elements uniformly from global elements set.
         '''
 
         return random.sample(list(self.elements), size)
@@ -535,7 +536,7 @@ class Forest:
         
         bunchSize = int(self.seeds / threads) + 1 # the +1 ensures that all trees will be used
         processes = [] # accumulate threads
-        for t in range(threads):
+        for t in range(threads): 
             bunch = self.trees[t*bunchSize:(t+1)*bunchSize]
             prc = Process(target=self.growBunch, kwargs={'trees': bunch})
             processes.append(prc)
@@ -688,9 +689,40 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
 
 if __name__ == '__main__':
 
-    s = loadSetFromCsv ('./credit_testdata.csv', ignoreColumns=[0])
-    print(s.classes)
-    print('elements', len(s.elements))
+    # s = loadSetFromCsv ('./credit_testdata.csv', ignoreColumns=[0])
+    # print(s.classes)
+    # print('elements', len(s.elements))
+
+    # f = Forest(s, 10, 3, featureSubset=2, ignoreCasing=True)
+    # f.grow(threads=1)
+
+    # testSample = s.sample()[0]
+    # dist = f.classify(testSample)
+
+    # print(f'Test Data Element Features: {str(testSample.features)}')
+    # print('Expected/Actual Evaluation:', testSample._class)
+    # print('Forest Prediction:', dist)
+
+    # print(f.trees[0].nodes)
+    # print(f.trained)
+
+    s = Set(classes=['Good', 'Bad'], features={
+        'Savings': ['Low', 'Medium', 'High'],
+        'Assets': ['Low', 'Medium', 'High'],
+        'Income': int
+    })
+
+    # add data to the set
+    s.addElement( Element(_class='Good', Savings='Medium', Assets='High', Income=75) )
+    s.addElement( Element(_class='Bad', Savings='Low', Assets='Low', Income=50) )
+    s.addElement( Element(_class='Bad', Savings='High', Assets='Medium', Income=25) )
+    s.addElement( Element(_class='Good', Savings='Medium', Assets='Medium', Income=75) )
+    s.addElement( Element(_class='Good', Savings='Low', Assets='Medium', Income=75) )
+    s.addElement( Element(_class='Good', Savings='High', Assets='High', Income=25) )
+    s.addElement( Element(_class='Bad', Savings='Low', Assets='Low', Income=25) )
+    s.addElement( Element(_class='Good', Savings='Medium', Assets='Medium', Income=75) )
+
+    print(s.impurity())
 
     f = Forest(s, 10, 3, featureSubset=2, ignoreCasing=True)
     f.grow(threads=1)
@@ -702,21 +734,5 @@ if __name__ == '__main__':
     print('Expected/Actual Evaluation:', testSample._class)
     print('Forest Prediction:', dist)
 
-    f.trees[0].show()
-    # s = Set(classes=['Good', 'Bad'], features={
-    #     'Savings': ['Low', 'Medium', 'High'],
-    #     'Assets': ['Low', 'Medium', 'High'],
-    #     'Income': int
-    # })
-
-    # # add data to the set
-    # s.addElement( Element(_class='Good', Savings='Medium', Assets='High', Income=75) )
-    # s.addElement( Element(_class='Bad', Savings='Low', Assets='Low', Income=50) )
-    # s.addElement( Element(_class='Bad', Savings='High', Assets='Medium', Income=25) )
-    # s.addElement( Element(_class='Good', Savings='Medium', Assets='Medium', Income=75) )
-    # s.addElement( Element(_class='Good', Savings='Low', Assets='Medium', Income=75) )
-    # s.addElement( Element(_class='Good', Savings='High', Assets='High', Income=25) )
-    # s.addElement( Element(_class='Bad', Savings='Low', Assets='Low', Income=25) )
-    # s.addElement( Element(_class='Good', Savings='Medium', Assets='Medium', Income=75) )
-
-    # print(s.impurity())
+    print(f.trees[0].nodes)
+    print(f.trained)
