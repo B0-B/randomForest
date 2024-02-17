@@ -1,4 +1,3 @@
-
 '''
 Here’s a high-level overview of the classes:
 
@@ -254,7 +253,7 @@ class Node:
      - feature
      - split condition
 
-    Every initialized node will auto-assign an nonce-id.
+    Every initialized node will auto-assign a nonce-id.
     '''
 
     count = 0
@@ -262,8 +261,11 @@ class Node:
     def __init__(self, depth: int, _Set: Set, parent: Node=None, leftChild: Node=None, rightChild: Node=None,
                 feature: str|None=None, condition: int|float|str=None) -> None:
         
+        # assign id from node count and 
+        # increment global class count
         self.id = Node.count
-        Node.count += 1 # increment global class count
+        Node.count += 1 
+
         self.depth = depth
         self.Set = _Set
         self.parent = parent
@@ -299,22 +301,19 @@ class Tree:
 
         fType = self.Set.features[feature]
             
-
-        L, R = None, None
-        condition = None
         impurity = float('inf')
+        L, R, condition = None, None, None
 
-        # split the parent set depending on feature type into L, R childs
+        
+        # first determine search domain by accumulating all 
+        # observed feature values
+        domain = None
         if fType in (int, float):
-
-            # first determine search domain by accumulating all 
-            # observed feature values
+            
             domain = []
             for e in node.Set.elements:
                 domain.append(e.features[feature])
-        
         elif type(fType) is list:
-
             # string features are discrete, use all 
             # possible string features as domain.
             domain = node.Set.features[feature]
@@ -322,6 +321,7 @@ class Tree:
         # sort the domain in ascending order
         domain.sort() 
 
+        # split the parent set depending on feature type into L, R childs
         # minimize impurity
         for value in domain:
             
