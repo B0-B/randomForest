@@ -62,6 +62,7 @@ And a detailed overview of the methods implemented so far:
 from __future__ import annotations
 from typing import Any 
 from pathlib import PosixPath, Path
+import matplotlib.pyplot as plt
 import random
 import csv
 
@@ -84,6 +85,12 @@ class Element:
 
         self._class = _class
         self.features = features
+    
+    def show (self) -> None:
+        
+        for k, v in self.features.items():
+            print(f'{k}: {v}')
+        print(f'class: {self._class}')
 
 class Set:
 
@@ -238,6 +245,7 @@ class Set:
 
         return random.sample(list(self.elements), size)
 
+
 class Node:
 
     '''
@@ -248,8 +256,8 @@ class Node:
      - depth (root is 0)
      - the underlying set
      - pointer to parent (None if root)
-     - pointer to left child
-     - pointer to right child
+     - pointer to the nodes left child
+     - pointer to the nodes right child
      - feature
      - split condition
 
@@ -281,15 +289,17 @@ class Tree:
     A base decision tree.
     '''
 
-    def __init__ (self, _Set: Set, depth: int) -> None:
+    def __init__ (self, _Set: Set, depth: int, id: int|None=None) -> None:
 
+        self.id = id
         self.Set = _Set
-
+        
         # Nodes are structured to point to their closest peers.
         # Initialize first (root) node which has no parent by definition
         # and keep children undefined yet.
         self.nodes = [Node(0, _Set, None, None, None)]
 
+        # denote the total depth of the tree
         self.depth = depth
 
     def pureNode (self, node: Node, feature: str, ignoreCasing: bool=False) -> float:
@@ -330,9 +340,9 @@ class Tree:
 
             # Sum both Gini impurities (L,R) as figure of merit - which needs to be minimized
             cImpurity = cL.impurity() + cR.impurity()
-
+            print(f'impurity: {cImpurity} minimum: {impurity}', end='\r')
             if cImpurity < impurity:
-
+                
                 impurity = cImpurity
                 condition = value
                 L, R = cL, cR
@@ -347,7 +357,7 @@ class Tree:
 
         return impurity
 
-    def grow (self, currentDepth: int=0, featureSubset: int=None, ignoreCasing: bool=False) -> None:
+    def grow (self, currentDepth: int=0, featureSubset: int=None, ignoreCasing: bool=False, verbose:bool=False) -> None:
 
         '''
         depth: total depth (provided persistently)
@@ -355,8 +365,11 @@ class Tree:
         featureSubset: random subset size of the features selected for impurity search
         '''
 
+        if verbose:
+            print(f'Grow tree {self.id} at depth {currentDepth} ...')
+
         # terminate if leaf is hit i.e. when depth extincts
-        if currentDepth == self.depth:
+        if currentDepth >= self.depth:
             return
         
         # filter all nodes at current depth
@@ -394,7 +407,7 @@ class Tree:
             self.nodes.append(node.rightChild)        
 
             # Call grow function recursively with incremented currentDepth
-            self.grow(currentDepth + 1, featureSubset, ignoreCasing)
+            self.grow(currentDepth + 1, featureSubset, ignoreCasing, verbose=verbose)
 
     def show (self) -> None:
 
@@ -445,13 +458,29 @@ class Tree:
         # simulate decision path
         while pointer.condition:
             
-            expectedFeatureType = self.features[pointer.feature]
+            expectedFeatureType = self.Set.features[pointer.feature] 
+            if expectedFeatureType in [float, int]:
+                pass
+            elif type(expectedFeatureType) == list:
+                expectedFeatureType = list
+            else:
+                TypeError(f'Feature type <{type(self.Set.features[pointer.feature])}> is not supported for element "{self.Set.features[pointer.feature]}"')
+
+            # construct all left child conditions
+            numericCondition = expectedFeatureType in [int, float] and element.features[pointer.feature] <= pointer.condition
+            classCondition = not ignoreCasing and expectedFeatureType is list and element.features[pointer.feature] == pointer.condition
+            classConditionNoCasing = ignoreCasing and expectedFeatureType is list and element.features[pointer.feature].lower() == pointer.condition.lower()
 
             # decide if evaluation continues in left or right child branch
-            if (expectedFeatureType in [int, float] and element.features[pointer.feature] <= pointer.condition) or (element.features[pointer.feature] == pointer.condition or (ignoreCasing and element.features[pointer.feature].lower() == pointer.condition.lower())):
+            if numericCondition or classCondition or classConditionNoCasing:
                 pointer = pointer.leftChild
             else:
                 pointer = pointer.rightChild
+
+            # if (expectedFeatureType in [int, float] and element.features[pointer.feature] <= pointer.condition) or (element.features[pointer.feature] == pointer.condition or (ignoreCasing and element.features[pointer.feature].lower() == pointer.condition.lower())):
+            #     pointer = pointer.leftChild
+            # else:
+            #     pointer = pointer.rightChild
 
         # extract the set from final pointer (leaf)
         leafSet = pointer.Set
@@ -486,6 +515,7 @@ class Forest:
 
         # tree buffer
         self.trees = []
+        count = 0
 
         # plant trees from seeds
         for _ in range(seeds):
@@ -500,9 +530,12 @@ class Forest:
 
             # spawn Tree
             self.trees.append(
-                Tree(self.Set, sampleDepth)
+                Tree(self.Set, sampleDepth, id=count)
             )
-    
+
+            # increment tree count
+            count += 1
+
     def classify (self, element: Element, normalize: bool=True) -> dict[int|float|str, float]:
 
         if not self.trained:
@@ -523,33 +556,37 @@ class Forest:
         
         return finalDist
 
-    def grow (self, threads: int=4) -> None:
+    def grow (self, threads: int=4, verbose: bool=False) -> None:
 
         '''
         Grows the forest by splitting the n trees accross <=n threads.
         Each process will run in seperated mem space and is scheduled
-        by the OS to run on different physical or logical cores.
+        by the OS to run on different physical or logical cores which
+        allows to parallelize the training.
         '''
 
         if threads > self.seeds:
             Warning(f'The number of threads ({threads}) exceeds the number of trees ({self.seeds}) in the forest.')
         
-        bunchSize = int(self.seeds / threads) + 1 # the +1 ensures that all trees will be used
-        processes = [] # accumulate threads
-        for t in range(threads): 
-            bunch = self.trees[t*bunchSize:(t+1)*bunchSize]
-            prc = Process(target=self.growBunch, kwargs={'trees': bunch})
-            processes.append(prc)
-            prc.start()
+        if threads == 1:
+            self.growBunch(self.trees, verbose)
+        else:
+            bunchSize = int(self.seeds / threads) + 1 # the +1 ensures that all trees will be used
+            processes = [] # accumulate threads
+            for t in range(threads): 
+                bunch = self.trees[t*bunchSize:(t+1)*bunchSize]
+                prc = Process(target=self.growBunch, kwargs={'trees': bunch, 'verbose': verbose})
+                processes.append(prc)
+                prc.start()
 
-        # await all processes to finish
-        for prc in processes:
-            prc.join()
+            # await all processes to finish
+            for prc in processes:
+                prc.join()
 
         # flip trained label
         self.trained = True
 
-    def growBunch (self, trees: list[Tree]):
+    def growBunch (self, trees: list[Tree], verbose: bool=False):
 
         '''
         Grows a bunch of provided trees procedually in a single thread.
@@ -558,7 +595,9 @@ class Forest:
 
         for t in trees:
 
-            t.grow(0, self.featureSubset, self.ignoreCasing)
+            t.grow(0, self.featureSubset, self.ignoreCasing, verbose=verbose)
+
+
 
 def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: list[int]=[]) -> Set:
 
@@ -670,7 +709,7 @@ def loadSetFromCsv (csvPath: str|PosixPath, delimiter: str=',', ignoreColumns: l
                 if features[key] is int:
                     value = int(value)
                 elif features[key] is float:
-                    value = int(value)
+                    value = float(value)
                 else:
                     value = str(value)
 
@@ -724,7 +763,7 @@ if __name__ == '__main__':
 
     print(s.impurity())
 
-    f = Forest(s, 10, 3, featureSubset=2, ignoreCasing=True)
+    f = Forest(s, 5, 3, featureSubset=2, ignoreCasing=True)
     f.grow(threads=1)
 
     testSample = s.sample()[0]
